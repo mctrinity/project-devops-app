@@ -1,0 +1,83 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+
+# Virtual environment
+.env
+.venv
+env/
+venv/
+ENV/
+Pipfile.lock
+
+# Environment variables or local secrets
+*.env
+*.env.*
+
+# Python egg files
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+sdist/
+develop-eggs/
+.installed.cfg
+*.manifest
+*.spec
+
+# Unit test / coverage
+.coverage
+.cache/
+nosetests.xml
+coverage.xml
+*.cover
+*.pytest_cache/
+htmlcov/
+
+# Logs
+*.log
+
+# MyPy and Pylint
+.mypy_cache/
+.pylint.d/
+
+# VSCode and IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Docker
+*.tar
+docker-compose.override.yml
+
+# Kubernetes manifests
+*.bak
+*.tmp
+*.old
+
+# Minikube artifacts
+minikube/
+.kube/
+.kubeconfig
+
+# SQLite database
+*.db
+*.sqlite3
+
+# Ignore compiled JavaScript/map files (if using frontend)
+*.js.map
+*.tsbuildinfo
+
+# Mac/Linux system files
+.DS_Store
+Thumbs.db
+
+# Editor or user-created copies
+*copy*
+*Copy*
