@@ -81,3 +81,5 @@ Thumbs.db
 # Editor or user-created copies
 *copy*
 *Copy*
+k8s/secrets.yaml
+k8s/postgres-secret.yaml
