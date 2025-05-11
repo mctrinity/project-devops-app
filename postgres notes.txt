@@ -1,0 +1,10 @@
+az postgres flexible-server create `
+  --resource-group fastapi-rg `
+  --name fastapi-prod-db `
+  --location eastus `
+  --admin-user devuser `
+  --admin-password Testing143@ `
+  --tier Burstable `
+  --sku-name Standard_B1ms `
+  --version 15 `
+  --storage-size 32

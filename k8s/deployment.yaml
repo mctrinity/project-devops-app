@@ -21,8 +21,8 @@ spec:
     spec:
       containers:
         - name: fastapi-todo
-          image: fastapi-todo:v1.0.0  # Use specific version tag instead of latest
-          imagePullPolicy: Never   # Use 'Never' for local Docker images
+          image: fastapitodoregistry.azurecr.io/fastapi-todo:v1.0.0
+          imagePullPolicy: Always
           ports:
             - containerPort: 8000
           resources:
@@ -32,24 +32,22 @@ spec:
             limits:
               memory: "256Mi"
               cpu: "500m"
-          readinessProbe:
-            httpGet:
-              path: /health  # Consider implementing a lightweight health endpoint
-              port: 8000
-            initialDelaySeconds: 5
-            periodSeconds: 10
-          livenessProbe:
-            httpGet:
-              path: /health  # Consider implementing a lightweight health endpoint
-              port: 8000
-            initialDelaySeconds: 15
-            periodSeconds: 20
+          # readinessProbe:
+          #   httpGet:
+          #     path: /health  # Consider implementing a lightweight health endpoint
+          #     port: 8000
+          #   initialDelaySeconds: 5
+          #   periodSeconds: 10
+          # livenessProbe:
+          #   httpGet:
+          #     path: /health  # Consider implementing a lightweight health endpoint
+          #     port: 8000
+          #   initialDelaySeconds: 15
+          #   periodSeconds: 20
           securityContext:
             runAsNonRoot: true
             runAsUser: 1000
             allowPrivilegeEscalation: false
           envFrom:
-            - configMapRef:
-                name: fastapi-config
             - secretRef:
                 name: fastapi-secret

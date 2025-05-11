@@ -9,4 +9,4 @@ spec:
     - protocol: TCP
       port: 80
       targetPort: 8000
-  type: NodePort   # Use LoadBalancer on AKS or cloud clusters
+  type: ClusterIP

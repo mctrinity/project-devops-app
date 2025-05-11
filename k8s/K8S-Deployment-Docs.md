@@ -1,6 +1,6 @@
-# Kubernetes Deployment Docs for FastAPI To-Do App
+# Kubernetes Deployment Docs for FastAPI To-Do App (External PostgreSQL Edition)
 
-This documentation captures the Kubernetes resources and best practices used to deploy a FastAPI-based To-Do API in a secure and scalable way.
+This documentation captures the Kubernetes resources and best practices used to deploy a FastAPI-based To-Do API in a secure and scalable way, now using **Azure Database for PostgreSQL** instead of an in-cluster database.
 
 ---
 
@@ -18,6 +18,11 @@ spec:
   selector:
     matchLabels:
       app: fastapi-todo
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   template:
     metadata:
       labels:
@@ -25,25 +30,34 @@ spec:
     spec:
       containers:
         - name: fastapi-todo
-          image: fastapi-todo:latest
-          imagePullPolicy: Never
+          image: fastapitodoregistry.azurecr.io/fastapi-todo:v1.0.0
+          imagePullPolicy: Always
           ports:
             - containerPort: 8000
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
           readinessProbe:
             httpGet:
-              path: /docs
+              path: /health
               port: 8000
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
             httpGet:
-              path: /docs
+              path: /health
               port: 8000
             initialDelaySeconds: 15
             periodSeconds: 20
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
           envFrom:
-            - configMapRef:
-                name: fastapi-config
             - secretRef:
                 name: fastapi-secret
 ```
@@ -64,26 +78,14 @@ spec:
     - protocol: TCP
       port: 80
       targetPort: 8000
-  type: NodePort
+  type: ClusterIP  # Ingress will route traffic to this service
 ```
+
+> 💡 You only need `type: NodePort` if you want direct external access without Ingress. For Ingress setups (recommended), `ClusterIP` is sufficient and preferred.
 
 ---
 
-## ⚙️ ConfigMap: `configmap.yaml`
-
-```yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: fastapi-config
-  namespace: default
-data:
-  DB_URL: "sqlite:///./todos.db"
-```
-
----
-
-## 🔐 Secrets: `secrets.yaml`
+## 🔐 Secrets: `fastapi-secret.yaml`
 
 ```yaml
 apiVersion: v1
@@ -95,29 +97,14 @@ type: Opaque
 data:
   JWT_SECRET: amF3c2VjcmV0MTIz           # "jawssecret123"
   API_KEY: YXBpa2V5LTIzNDU2Nzg5MA==      # "apikey-234567890"
+  DB_URL: <base64-encoded-external-postgres-url>
 ```
 
-> 💡 To encode a secret:
+> 💡 To encode your DB URL:
 >
 > ```bash
-> echo -n "your-value" | base64
+> echo -n "postgresql://devuser:YourPassword@your-db-name.postgres.database.azure.com:5432/tododb" | base64
 > ```
->
-> 💡 To decode a base64-encoded secret manually:
->
-> ```bash
-> echo "<base64-string>" | base64 --decode
-> ```
->
-> 💡 Example:
->
-> ```bash
-> echo "amF3c2VjcmV0MTIz" | base64 --decode   # Output: jawssecret123
-> echo "YXBpa2V5LTIzNDU2Nzg5MA==" | base64 --decode   # Output: apikey-234567890
-> ```
-
-> 🔐 **Note on Base64 Encoding:**
-> Kubernetes uses base64 to store secrets as a form of basic obfuscation. It helps prevent casual exposure of sensitive values in YAML files and version control. However, base64 is not encryption — anyone with access can decode it using `base64 --decode`. For strong security, enforce RBAC policies and consider integrating tools like Vault or cloud-based secret managers.
 
 ---
 
@@ -148,13 +135,11 @@ spec:
 
 ## 🧭 Why Use Ingress?
 
-Ingress acts as a **centralized entry point** to your applications running in Kubernetes. Instead of exposing each service with a separate `NodePort` or `LoadBalancer`, Ingress lets you:
+Ingress provides a centralized entry point to your application:
 
-* Use **human-friendly URLs** like `http://todo.local`
-* Consolidate routing for multiple apps/services under one controller
-* Support **TLS termination** and **custom routing rules**
-* Apply **auth, rate limiting, and headers** using annotations
-* Avoid consuming external IPs for every service (especially in cloud setups)
+* Friendly URLs (e.g., `http://todo.local`)
+* No need for multiple LoadBalancers or NodePorts
+* Supports TLS termination, authentication, path-based routing
 
 ---
 
@@ -166,7 +151,7 @@ Ingress acts as a **centralized entry point** to your applications running in Ku
 minikube addons enable ingress
 ```
 
-### 2. Apply the Ingress YAML
+### 2. Apply Ingress YAML
 
 ```bash
 kubectl apply -f k8s/ingress.yaml
@@ -178,43 +163,23 @@ kubectl apply -f k8s/ingress.yaml
 minikube tunnel
 ```
 
-> This will expose the ingress controller on `127.0.0.1`.
+### 4. Add Hosts Entry
 
-### 4. Add Local DNS Entry
-
-Edit your `hosts` file:
-
-* **On Windows**:  `C:\Windows\System32\drivers\etc\hosts`
-* **On macOS/Linux**:  `/etc/hosts`
-
-Add the following line:
-
-```
+```txt
 127.0.0.1  todo.local
 ```
 
-### 5. Access Your App
-
-Visit:
-
-```
-http://todo.local
-```
-
-### 6. Access Swagger UI and ReDoc
+### 5. Access App:
 
 * Swagger: `http://todo.local/docs`
 * ReDoc: `http://todo.local/redoc`
-
-> ✅ No need to rely on `minikube service` or port numbers anymore!
 
 ---
 
 ## 🚀 Rollout Commands
 
 ```bash
-kubectl apply -f k8s/configmap.yaml
-kubectl apply -f k8s/secrets.yaml
+kubectl apply -f k8s/fastapi-secret.yaml
 kubectl apply -f k8s/deployment.yaml
 kubectl apply -f k8s/service.yaml
 kubectl apply -f k8s/ingress.yaml
@@ -228,156 +193,79 @@ kubectl rollout restart deployment fastapi-todo
 ```bash
 kubectl exec -it <pod-name> -- env | grep JWT_SECRET
 kubectl exec -it <pod-name> -- env | grep API_KEY
+kubectl exec -it <pod-name> -- env | grep DB_URL
 ```
 
 ---
 
-## 🐘 PostgreSQL Setup & DB Initialization
+## 🐘 PostgreSQL Setup in Azure
 
-If you encounter an error like `FATAL:  database "tododb" does not exist`, it means the FastAPI app couldn't find the expected database in PostgreSQL. To resolve:
+You no longer need in-cluster Postgres. Instead:
 
-```bash
-# Enter the Postgres pod
-kubectl exec -it <postgres-pod-name> -- psql -U devuser
-
-# Then manually create the database
-CREATE DATABASE tododb;
-```
-
-After creating the database, restart your FastAPI deployment to trigger table creation:
+1. Create a flexible server:
 
 ```bash
-kubectl rollout restart deployment fastapi-todo
+az postgres flexible-server create \
+  --resource-group fastapi-rg \
+  --name fastapi-prod-db \
+  --location eastus \
+  --admin-user devuser \
+  --admin-password YourSecurePassword123! \
+  --tier Burstable \
+  --sku-name Standard_B1ms \
+  --version 15 \
+  --storage-size 32
 ```
 
-> You can verify table creation with:
->
-> ```bash
-> kubectl exec -it <postgres-pod> -- psql -U devuser -d tododb
-> \dt
-> SELECT * FROM todos;
-> ```
+2. Allow traffic:
+
+```bash
+az postgres flexible-server firewall-rule create \
+  --resource-group fastapi-rg \
+  --name fastapi-prod-db \
+  --rule-name allow-all \
+  --start-ip-address 0.0.0.0 \
+  --end-ip-address 255.255.255.255
+```
+
+3. Connect via FastAPI using the DB URL in your secret.
 
 ---
 
 ## 🧪 API Testing via Swagger UI
 
-Once the FastAPI app is running, you can interactively test your endpoints using the built-in Swagger UI.
-
-### Access the Swagger UI
-
-If you're using NodePort:
-
-```bash
-minikube service fastapi-todo-service
-```
-
-➡ This will open a URL in your browser (e.g., `http://127.0.0.1:xxxxx`).
-
-Then navigate to:
-
-```
-http://<your-node-port-url>/docs
-```
-
-If using Ingress:
+Once the FastAPI app is running:
 
 ```
 http://todo.local/docs
 ```
 
-### Test Examples
+Try:
 
-#### ✅ Get To-Dos
-
-* Click on the **GET /todos** endpoint.
-* Click **"Try it out"**.
-* Click **"Execute"** to fetch all current to-dos.
-
-#### ➕ Create a To-Do
-
-* Expand **POST /todos**.
-* Click **"Try it out"**.
-* Use a request body like:
-
-```json
-{
-  "title": "Deploy to production",
-  "done": false
-}
-```
-
-* Click **"Execute"** to create it.
-
-#### ✏️ Update a To-Do
-
-* Use **PUT /todos/{todo\_id}** with a valid `todo_id` (e.g., 1).
-
-```json
-{
-  "title": "Deploy to production 🚀",
-  "done": true
-}
-```
-
-#### ❌ Delete a To-Do
-
-* Use **DELETE /todos/{todo\_id}** to remove a specific item.
+* `GET /todos`
+* `POST /todos`
+* `PUT /todos/{todo_id}`
+* `DELETE /todos/{todo_id}`
 
 ---
 
-## 📌 Notes
+## 🧼 Cleanup Notes
 
-* Do not log secrets in app code.
-* Base64 encoding is not encryption — use external secret managers (e.g., HashiCorp Vault or Azure Key Vault) for higher security.
-* Avoid hardcoding sensitive values in images or code.
-* To inspect base64 values stored in Kubernetes secrets:
+* You no longer need:
 
-  ```bash
-  kubectl get secret fastapi-secret -o yaml
-  # or extract and decode one line:
-  kubectl get secret fastapi-secret -o jsonpath="{.data.JWT_SECRET}" | base64 --decode
-  ```
-* 🔁 To rotate a secret:
+  * `postgres-deployment.yaml`
+  * `postgres-secret.yaml`
+  * `postgres-service.yaml`
+  * `postgres-pvc.yaml`
+  * `configmap.yaml`
 
-  ```bash
-  # Update your secret file or regenerate base64 string
-  kubectl apply -f k8s/secrets.yaml
-  kubectl rollout restart deployment fastapi-todo
-  ```
-* 🔒 To restrict access to secrets:
+* Ensure `.gitignore` includes:
 
-  * Use Kubernetes RBAC to limit `get`, `list`, and `watch` permissions on Secret resources
-  * Avoid assigning unnecessary roles to service accounts
-  * Consider using read-only access for observability tools
-* 📁 To mount a secret as a file:
-
-  ```yaml
-  volumeMounts:
-    - name: secret-volume
-      mountPath: "/etc/secrets"
-      readOnly: true
-  volumes:
-    - name: secret-volume
-      secret:
-        secretName: fastapi-secret
+  ```gitignore
+  k8s/*secret*.yaml
+  k8s/*copy*.yaml
   ```
 
-  > This will mount each key (e.g., `JWT_SECRET`) as a file under `/etc/secrets/JWT_SECRET`
-  > **Note:** Secrets mounted as files are stored in memory (not on disk) and are not persistent across pod restarts. They are designed for secure, temporary access only.
-* 📦 To define persistent volumes for databases or files:
+---
 
-  ```yaml
-  kind: PersistentVolumeClaim
-  apiVersion: v1
-  metadata:
-    name: todo-data-pvc
-  spec:
-    accessModes:
-      - ReadWriteOnce
-    resources:
-      requests:
-        storage: 1Gi
-  ```
-
-  > Use PVCs for persistent application data like databases — not for secrets or tokens.
+You're now running a clean, cloud-native FastAPI app with secure external PostgreSQL integration via Azure! 🚀

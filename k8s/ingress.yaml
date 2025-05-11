@@ -4,9 +4,10 @@ metadata:
   name: fastapi-todo-ingress
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /
+    kubernetes.io/ingress.class: nginx
 spec:
   rules:
-    - host: todo.local
+    - host: 4.157.20.34.nip.io
       http:
         paths:
           - path: /
@@ -15,4 +16,4 @@ spec:
               service:
                 name: fastapi-todo-service
                 port:
-                  number: 80
+                  number: 8000

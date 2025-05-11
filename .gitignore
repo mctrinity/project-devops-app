@@ -17,7 +17,7 @@ Pipfile.lock
 *.env
 *.env.*
 
-# Python egg files
+# Python egg files and build artifacts
 *.egg
 *.egg-info/
 dist/
@@ -56,7 +56,14 @@ htmlcov/
 *.tar
 docker-compose.override.yml
 
-# Kubernetes manifests
+# Kubernetes Secrets
+k8s/*secret*.yaml
+
+# Kubernetes - Ignore dev/test copies
+k8s/*copy*.yaml
+k8s/deployment copy.yaml
+
+# Kubernetes - misc
 *.bak
 *.tmp
 *.old
@@ -70,7 +77,7 @@ minikube/
 *.db
 *.sqlite3
 
-# Ignore compiled JavaScript/map files (if using frontend)
+# Ignore compiled JS/map files
 *.js.map
 *.tsbuildinfo
 
@@ -78,8 +85,6 @@ minikube/
 .DS_Store
 Thumbs.db
 
-# Editor or user-created copies
+# Markdown backups or temp files
+*.md~
 *copy*
-*Copy*
-k8s/secrets.yaml
-k8s/postgres-secret.yaml
